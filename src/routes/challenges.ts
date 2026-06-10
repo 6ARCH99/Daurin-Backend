@@ -183,4 +183,25 @@ router.post("/:id/join", async (req, res) => {
   res.json({ data: { id: userChallenge.id } });
 });
 
+router.delete("/:id/cancel", async (req, res) => {
+  const userId = req.auth!.userId;
+  const id = String(req.params.id);
+
+  const userChallenge = await prisma.userChallenge.findUnique({
+    where: { userId_challengeId: { userId, challengeId: id } },
+  });
+
+  if (!userChallenge) {
+    res.status(404).json({ error: "Challenge not found or not joined" });
+    return;
+  }
+
+  await prisma.userChallenge.update({
+    where: { id: userChallenge.id },
+    data: { status: "cancelled" },
+  });
+
+  res.json({ data: { success: true } });
+});
+
 export default router;

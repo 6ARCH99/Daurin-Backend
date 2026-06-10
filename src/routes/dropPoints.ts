@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { seedDropPoints } from "../../prisma/seed-droppoints.js";
 
 const router = Router();
 
@@ -62,6 +63,13 @@ router.get("/", async (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const lat = req.query.lat ? Number(req.query.lat) : null;
   const lng = req.query.lng ? Number(req.query.lng) : null;
+
+  // Check if drop points exist, if not seed them
+  const dropPointCount = await prisma.dropPoint.count();
+  if (dropPointCount === 0) {
+    console.log("🔄 Drop points empty, auto-seeding drop point data...");
+    await seedDropPoints();
+  }
 
   let list = await prisma.dropPoint.findMany();
   if (material && material !== "semua" && material !== "all") {

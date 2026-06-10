@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { co2FromWeightKg, pointsFromDeposit } from "../src/lib/climate.js";
+import { seedLeaderboard } from "./seed-leaderboard.js";
+import { seedDropPoints } from "./seed-droppoints.js";
 
 const prisma = new PrismaClient();
 
@@ -114,6 +116,54 @@ async function main() {
         name: "Inspirator",
         description: "Ajak 5 teman",
         icon: "🎯",
+      },
+    }),
+    prisma.badge.create({
+      data: {
+        code: "eco_warrior",
+        name: "Eco Warrior",
+        description: "Kumpulkan 100 kg sampah",
+        icon: "🌍",
+      },
+    }),
+    prisma.badge.create({
+      data: {
+        code: "plastic_hunter",
+        name: "Plastic Hunter",
+        description: "Setor 50 kg plastik",
+        icon: "♻️",
+      },
+    }),
+    prisma.badge.create({
+      data: {
+        code: "streak_master",
+        name: "Streak Master",
+        description: "Aktif 30 hari berturut-turut",
+        icon: "🔥",
+      },
+    }),
+    prisma.badge.create({
+      data: {
+        code: "community_hero",
+        name: "Community Hero",
+        description: "Ajak 10 teman bergabung",
+        icon: "👥",
+      },
+    }),
+    prisma.badge.create({
+      data: {
+        code: "carbon_saver",
+        name: "Carbon Saver",
+        description: "Hemat 500 kg CO2",
+        icon: "🌿",
+      },
+    }),
+    prisma.badge.create({
+      data: {
+        code: "gold_collector",
+        name: "Gold Collector",
+        description: "Kumpulkan 10,000 poin",
+        icon: "🥇",
       },
     }),
   ]);
@@ -411,6 +461,15 @@ async function main() {
   console.log("Seed complete.");
   console.log("Demo login: putra.wijaya@email.com / password123");
   console.log("Referral code: PUTRA24 | Operator key: operator-dev-key");
+
+  // Always seed leaderboard and drop points data for both demo and new accounts
+  console.log("\n🔄 Running leaderboard seed...");
+  await seedLeaderboard();
+
+  console.log("\n🔄 Running drop points seed...");
+  await seedDropPoints();
+
+  console.log("\n✅ All seeds completed successfully!");
 }
 
 main()
