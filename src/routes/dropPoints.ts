@@ -6,9 +6,13 @@ import { seedDropPoints } from "../../prisma/seed-droppoints.js";
 const router = Router();
 
 function parseMaterials(raw: string) {
+  if (!raw) return [];
   try {
     return JSON.parse(raw) as string[];
   } catch {
+    if (typeof raw === 'string') {
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
     return [];
   }
 }
