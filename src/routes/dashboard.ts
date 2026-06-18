@@ -25,25 +25,31 @@ router.get("/", async (req, res) => {
     return;
   }
 
-  const [depositsLast7Days, depositsThisWeek, depositsPriorWeek, activeChallenges, activities] =
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [depositsLast7Days, depositsThisWeek, depositsPriorWeek, depositsThisMonthCount, activeChallenges, activities] =
     await Promise.all([
-      prisma.deposit.findMany({
-        where: { userId, createdAt: { gte: weekAgo } },
-        orderBy: { createdAt: "asc" },
+      prisma.depositTransaction.findMany({
+        where: { userId, status: "verified", verifiedAt: { gte: weekAgo } },
+        orderBy: { verifiedAt: "asc" },
       }),
-      prisma.deposit.aggregate({
-        where: { userId, createdAt: { gte: weekAgo } },
-        _sum: { co2SavedKg: true },
+      prisma.depositTransaction.aggregate({
+        where: { userId, status: "verified", verifiedAt: { gte: weekAgo } },
+        _sum: { totalWeightKg: true },
       }),
-      prisma.deposit.aggregate({
+      prisma.depositTransaction.aggregate({
         where: {
           userId,
-          createdAt: {
+          status: "verified",
+          verifiedAt: {
             gte: new Date(weekAgo.getTime() - 7 * 86400000),
             lt: weekAgo,
           },
         },
-        _sum: { co2SavedKg: true },
+        _sum: { totalWeightKg: true },
+      }),
+      prisma.depositTransaction.count({
+        where: { userId, status: "verified", verifiedAt: { gte: startOfMonth } },
       }),
       prisma.userChallenge.findMany({
         where: { userId, status: "active" },
@@ -56,9 +62,11 @@ router.get("/", async (req, res) => {
       }),
     ]);
 
-  const depositCount = await prisma.deposit.count({ where: { userId } });
-  const co2ThisWeek = depositsThisWeek._sum.co2SavedKg ?? 0;
-  const co2PriorWeek = depositsPriorWeek._sum.co2SavedKg ?? 0;
+  const depositCount = await prisma.depositTransaction.count({ where: { userId, status: "verified" } });
+  
+  // Using totalWeightKg * 1.5 as a mock conversion to co2SavedKg since it's not stored on DepositTransaction
+  const co2ThisWeek = (depositsThisWeek._sum.totalWeightKg ?? 0) * 1.5;
+  const co2PriorWeek = (depositsPriorWeek._sum.totalWeightKg ?? 0) * 1.5;
   const co2WeeklyDelta = Math.round((co2ThisWeek - co2PriorWeek) * 10) / 10;
 
   const chart = buildLast7DaysChart(depositsLast7Days, now);
@@ -74,8 +82,16 @@ router.get("/", async (req, res) => {
         totalSavedKg: user.co2SavedKg,
         weeklyDeltaKg: co2WeeklyDelta,
       },
+      stats: {
+        totalWeightKg: user.totalWeightKg,
+        activeDays: user.activeDays,
+        treesSaved: Math.floor(user.totalWeightKg * 0.1),
+        waterSavedLiters: Math.floor(user.totalWeightKg * 5.2),
+        energySavedKwh: Math.floor(user.totalWeightKg * 0.4),
+      },
       deposits: {
         totalCount: depositCount,
+        thisMonth: depositsThisMonthCount,
         memberSince: user.memberSince,
       },
       depositChartLast7Days: chart,
@@ -101,20 +117,26 @@ router.get("/", async (req, res) => {
 });
 
 function buildLast7DaysChart(
-  deposits: { createdAt: Date; weightKg: number }[],
+  deposits: { verifiedAt: Date | null; totalWeightKg: number }[],
   now: Date
 ) {
-  const labels = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+  const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  const labels: string[] = [];
   const buckets: number[] = Array(7).fill(0);
 
   for (let i = 6; i >= 0; i--) {
     const day = startOfDay(now);
     day.setDate(day.getDate() - i);
     const key = day.getTime();
-    const count = deposits.filter(
-      (d) => startOfDay(d.createdAt).getTime() === key
-    ).length;
-    buckets[6 - i] = count;
+    
+    // Sum weightKg instead of count for better chart visibility
+    const dailyDeposits = deposits.filter(
+      (d) => d.verifiedAt && startOfDay(d.verifiedAt).getTime() === key
+    );
+    const totalWeight = dailyDeposits.reduce((acc, d) => acc + d.totalWeightKg, 0);
+    
+    labels.push(dayNames[day.getDay()]);
+    buckets[6 - i] = totalWeight;
   }
 
   return labels.map((label, i) => ({ label, depositCount: buckets[i] }));

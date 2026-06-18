@@ -28,6 +28,7 @@ router.post("/", async (req, res) => {
       address: z.string().min(5),
       scheduledAt: z.string().datetime(),
       estimatedWeightKg: z.number().positive(),
+      category: z.string().min(1).optional(),
     })
     .safeParse(req.body);
   if (!parsed.success) {
@@ -45,6 +46,7 @@ router.post("/", async (req, res) => {
     },
   });
 
+  const selectedCategory = parsed.data.category || "plastik";
   const verificationToken = crypto.randomBytes(16).toString("hex");
   await prisma.depositTransaction.create({
     data: {
@@ -54,7 +56,7 @@ router.post("/", async (req, res) => {
       status: "pending",
       verificationToken,
       categoriesJson: JSON.stringify([
-        { category: "plastik", weightKg: parsed.data.estimatedWeightKg },
+        { category: selectedCategory, weightKg: parsed.data.estimatedWeightKg },
       ]),
       totalWeightKg: parsed.data.estimatedWeightKg,
     },
@@ -151,7 +153,8 @@ router.post("/:id/complete", requireOperator, async (req, res) => {
       actualWeightKg: z.number().positive(),
       categories: z
         .array(z.object({ category: z.string(), weightKg: z.number().positive() }))
-        .min(1),
+        .min(1)
+        .optional(),
       operatorId: z.string().optional(),
     })
     .safeParse(req.body);
@@ -169,6 +172,17 @@ router.post("/:id/complete", requireOperator, async (req, res) => {
     return;
   }
 
+  const finalCategories = parsed.data.categories ?? 
+    (pickup.depositTxn.categoriesJson ? JSON.parse(pickup.depositTxn.categoriesJson) : []);
+
+  // Update categories to reflect actual weight proportionally if not explicitly provided
+  if (!parsed.data.categories && finalCategories.length > 0) {
+    const origWeight = pickup.depositTxn.totalWeightKg || 1;
+    for (const c of finalCategories) {
+      c.weightKg = (c.weightKg / origWeight) * parsed.data.actualWeightKg;
+    }
+  }
+
   await prisma.pickupSchedule.update({
     where: { id: pickup.id },
     data: {
@@ -181,7 +195,7 @@ router.post("/:id/complete", requireOperator, async (req, res) => {
     pickup.userId,
     pickup.depositTxn.id,
     parsed.data.actualWeightKg,
-    parsed.data.categories,
+    finalCategories,
     pickup.address,
     "pickup"
   );

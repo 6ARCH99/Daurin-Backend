@@ -18,3 +18,5 @@ export async function queueNotification(
     console.log(`[notify:${channel}] ${event}`, payload);
   }
 }
+
+export const notify = queueNotification;

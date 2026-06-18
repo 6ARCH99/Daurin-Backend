@@ -42,6 +42,7 @@ function publicUser(user: {
   rank: string;
   memberSince: Date;
   verified: boolean;
+  referralCode: string | null;
 }) {
   return {
     id: user.id,
@@ -54,6 +55,7 @@ function publicUser(user: {
     rank: user.rank,
     memberSince: user.memberSince,
     verified: user.verified,
+    referralCode: user.referralCode,
   };
 }
 

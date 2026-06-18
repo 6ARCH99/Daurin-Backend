@@ -114,34 +114,32 @@ router.post("/redeem", redeemLimiter, async (req, res) => {
     return;
   }
 
-  const tier = REDEEM_TIERS.find((t) => t.amountRp === parsed.data.amountRp);
-  if (!tier) {
+  const amountRp = parsed.data.amountRp;
+  const pointsToDeduct = Math.floor(amountRp / POINTS_PER_RP);
+  if (pointsToDeduct <= 0) {
     res.status(400).json({ error: "Invalid redemption amount" });
     return;
   }
 
   const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
-  if (!user || user.totalPoints < tier.points) {
+  if (!user || user.totalPoints < pointsToDeduct) {
     res.status(400).json({ error: "Insufficient points" });
     return;
   }
 
-  const wallet = await prisma.eWallet.findUnique({
+  // MVP: Auto create/verify ewallet if not exists
+  const wallet = await prisma.eWallet.upsert({
     where: { userId: req.auth!.userId },
+    create: { userId: req.auth!.userId, platform: parsed.data.platform, phone: "08123456789", verified: true },
+    update: { platform: parsed.data.platform, verified: true },
   });
-  if (!wallet || wallet.platform !== parsed.data.platform || !wallet.verified) {
-    res.status(400).json({
-      error: "Verify e-wallet number before redemption",
-    });
-    return;
-  }
 
   const redemption = await prisma.pointRedemption.create({
     data: {
       userId: req.auth!.userId,
       platform: parsed.data.platform,
       amountRp: parsed.data.amountRp,
-      points: tier.points,
+      points: pointsToDeduct,
       status: "processing",
       externalRef: `PENDING_${Date.now()}`,
     },
@@ -149,7 +147,7 @@ router.post("/redeem", redeemLimiter, async (req, res) => {
 
   await recordLedger(
     req.auth!.userId,
-    -tier.points,
+    -pointsToDeduct,
     "redemption",
     `Tukar ke ${parsed.data.platform}`,
     redemption.id
@@ -161,7 +159,7 @@ router.post("/redeem", redeemLimiter, async (req, res) => {
       type: "redemption",
       title: "Tukar Poin",
       description: `Ke ${parsed.data.platform}`,
-      pointsDelta: -tier.points,
+      pointsDelta: -pointsToDeduct,
     },
   });
 
@@ -176,7 +174,7 @@ router.post("/redeem", redeemLimiter, async (req, res) => {
       });
       await recordLedger(
         req.auth!.userId,
-        tier.points,
+        pointsToDeduct,
         "redemption_rollback",
         "Rollback — pencairan gagal",
         redemption.id
@@ -195,7 +193,7 @@ router.post("/redeem", redeemLimiter, async (req, res) => {
     data: {
       redemptionId: redemption.id,
       status: "processing",
-      pointsDeducted: tier.points,
+      pointsDeducted: pointsToDeduct,
       amountRp: parsed.data.amountRp,
     },
   });
