@@ -2,7 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { prisma } from "./prisma.js";
 
-const ACCESS_TTL = "15m";
+const ACCESS_TTL = "7d";
 const REFRESH_DAYS = 30;
 
 function secret() {

@@ -52,6 +52,7 @@ router.get("/", async (req, res) => {
       rank: true,
       memberSince: true,
       verified: true,
+      referralCode: true,
     },
   });
   if (!user) {

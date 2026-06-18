@@ -159,6 +159,7 @@ router.get("/history", requireAuth, async (req, res) => {
       dropPoint: t.dropPoint?.name,
       createdAt: t.createdAt,
       verifiedAt: t.verifiedAt,
+      categories: t.categoriesJson ? JSON.parse(t.categoriesJson) : [],
     })),
   });
 });
